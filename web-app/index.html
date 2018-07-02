@@ -1,0 +1,70 @@
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>computer vision web api demo</title>
+        <link rel="stylesheet" href="css/idangerous.swiper.css">
+        <link rel="stylesheet" href="css/index.css">
+
+        <script src="js/jquery-1.10.1.min.js"></script>
+        <script src="js/idangerous.swiper.min.js"></script>
+        <script src="js/index.js"></script>
+    </head>
+    <body>
+        <div class="device">
+            <div class="swiper-container">
+            <div class="swiper-wrapper">
+                <div class="swiper-slide red-slide">
+                    <img src="images/demo1.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+                <div class="swiper-slide blue-slide">
+                    <img src="images/demo2.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+                <div class="swiper-slide orange-slide">
+                    <img src="images/demo3.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+                <div class="swiper-slide blue-slide">
+                    <img src="images/demo4.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+                <div class="swiper-slide red-slide">
+                    <img src="images/demo5.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+                <div class="swiper-slide green-slide">
+                    <img src="images/demo6.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+                <div class="swiper-slide green-slide">
+                    <img src="images/demo7.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+                <div class="swiper-slide green-slide">
+                    <img src="images/demo8.jpg" style="width: 100%; height: 100%;"/>
+                </div>
+            </div>
+            </div>
+            <div class="pagination"></div>
+        </div>
+
+        <div style="text-align:center; clear:both;">
+            <span class="upload">
+                <input type="text" class="upload-url" placeholder="copy and paste online image url..." id="image_url" />
+                <input type="button" class="upload-btn" value="submit" id="submit_url" />
+            </span> 
+
+            <span class="upload">
+                <input type="text" class="upload-url" placeholder="click to browse local image..." />
+                <input type="button" class="upload-btn" value="submit" id="submit_image" />
+                <input type="file" class="upload-input-file" />
+            </span> 
+        </div>
+
+        <div class="result">
+            <div id="image_result" class="image_result">
+
+            </div>
+
+            <div id="json_result" class="json_result">
+
+            </div>
+        </div>
+    </body>
+</html>

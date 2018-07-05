@@ -33,9 +33,6 @@ class YOLO(object):
         self.model_image_size = (416, 416) # fixed size or (None, None), hw
         self.boxes, self.scores, self.classes = self.generate()
 
-        self.font = ImageFont.truetype(font='vision/res/msyh.ttc')
-        self.thickness = 1
-
     def _get_class(self):
         classes_path = os.path.expanduser(self.classes_path)
         with open(classes_path, encoding="utf-8") as f:
@@ -121,6 +118,9 @@ class YOLO(object):
         
         start = timer()
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+        font = ImageFont.truetype(font='vision/res/msyh.ttc', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+        thickness = (image.size[0] + image.size[1]) // 300
+
         for i, c in reversed(list(enumerate(out_classes))):
             predicted_class = self.class_names[c]
             box = out_boxes[i]
@@ -128,7 +128,7 @@ class YOLO(object):
 
             label = '{} {:.2f}'.format(predicted_class, score)
             draw = ImageDraw.Draw(image)
-            label_size = draw.textsize(label, self.font)
+            label_size = draw.textsize(label, font)
 
             top, left, bottom, right = box
             top = max(0, np.floor(top + 0.5).astype('int32'))
@@ -143,20 +143,20 @@ class YOLO(object):
                 text_origin = np.array([left, top + 1])
 
             # My kingdom for a good redistributable image drawing library.
-            for i in range(self.thickness):
+            for i in range(thickness):
                 draw.rectangle(
                     [left + i, top + i, right - i, bottom - i],
                     outline=self.colors[c])
             draw.rectangle(
                 [tuple(text_origin), tuple(text_origin + label_size)],
                 fill=self.colors[c])
-            draw.text(text_origin, label, fill=(0, 0, 0), font=self.font)
+            draw.text(text_origin, label, fill=(0, 0, 0), font=font)
             del draw
         
         end = timer()
         print('Time consumed for drawing: {}'.format(end - start))
 
-        return image
+        return (image, out_boxes, out_scores, [self.class_names[i] for i in out_classes])
 
     def close_session(self):
         self.sess.close()
@@ -168,7 +168,6 @@ def detect_video(video_path, output_path=""):
     show results in window
     '''
     import cv2
-    yolo = YOLO()
     vid = cv2.VideoCapture(video_path)
     if not vid.isOpened():
         raise IOError("Couldn't open webcam or video")
@@ -187,8 +186,8 @@ def detect_video(video_path, output_path=""):
     while True:
         return_value, frame = vid.read()
         image = Image.fromarray(frame)
-        image = yolo.detect_image(image)
-        result = np.asarray(image)
+        result = yolo.detect_image(image)
+        result = np.asarray(result[0])
         curr_time = timer()
         exec_time = curr_time - prev_time
         prev_time = curr_time
@@ -206,22 +205,20 @@ def detect_video(video_path, output_path=""):
             out.write(result)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-    yolo.close_session()
 
 
-def detect_image():
+def detect_image(image):
     '''
-    detect target in single image
+    detect target in single image, return a tuple  (image, boxes, scores, classes)
     '''
-    yolo = YOLO()
-    while True:
-        img = input('Input image filename:')
-        try:
-            image = Image.open(img)
-        except:
-            print('Open Error! Try again!')
-            continue
-        else:
-            r_image = yolo.detect_image(image)
-            r_image.show()
+    result = yolo.detect_image(image)
+    return result
+
+
+def close_session():
+    '''
+    close session
+    '''
     yolo.close_session()
+
+yolo = YOLO()

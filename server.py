@@ -1,96 +1,187 @@
 
+'''
+vision server, handle vision API requests
+'''
+
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from PIL import Image
+
+import urllib
 import vision
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import traceback
+import io
+import uuid
+import time
+import json
+import os
+import cgi
 
+# server config
 SERVER_IP = ""
-SERVER_PORT = 8083
+SERVER_PORT = 8080
 
-class VisionRequestHandler(BaseHTTPRequestHandler):
-    '''vision request handler'''
-    
-    image_files = ["jpg", "jpeg", "png", "ico", "bmp"]
-    html_files = ["html", "htm"]
-    css_files = ["css"]
-    js_files = ["js"]
+# API define
+DETECT_ONLINE_API = "detect/online"
+DETECT_LOCAL_API = "detect/local"
 
-    static_root = "web-app"
+CLASSIFICATION_ONLINE_API = "classification/online"
+CLASSIFICATION_LOCAL_API = "classification/local"
 
-    def do_GET(self):
-        '''dispatch GET request'''
+# UA for download online image
+UA = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'}
 
-        if self.path == "":
-            self.file_action(self.static_root + "/index.html")
-        else:
-            p = self.path.split(".")
-            p = p[len(p) - 1].lower()
-            
-            if p in self.image_files:
-                self.file_action(self.static_root + self.path, "image/" + p)
-            elif p in self.html_files:
-                self.file_action(self.static_root + self.path, "text/html")
-            elif p in self.css_files:
-                self.file_action(self.static_root + self.path, "text/css")
-            elif p in self.js_files:
-                self.file_action(self.static_root + self.path, "application/javascript")
-            else:
-                self.send_error(404)
-    
+# cache folder
+CACHE_FOLDER = "image_cache"
+
+class VisionRequestHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
-        '''dispatch POST request'''
+        '''dispatch API requests'''
+
         p = self.path.strip("/")
 
-        if p == "classification":
-            self.classification_action()
-        elif p == "detect":
-            self.detect_action()
+        if p == DETECT_ONLINE_API:
+            self.detect_online()
+        elif p == DETECT_LOCAL_API:
+            self.detect_local()
+        elif p == CLASSIFICATION_ONLINE_API:
+            self.classification_online()
+        elif p == CLASSIFICATION_LOCAL_API:
+            self.classification_local()
         else:
             self.send_error(404)
     
-    def file_action(self, file, content_type):
-        '''static file by GET method'''
-        try:
-            with open(file, "rb") as f:
-                content = f.read()
-                self.send(content, content_type=content_type)
-        except:
-            self.send_error(404)
+    def detect_online(self):
+        '''detect online image API'''
+        key_value = self.rfile.read(int(self.headers["content-length"])).decode()
+
+        name = key_value.split("=")[0]
+        url = key_value.split("=")[1]
+
+        # only handle the right parameter
+        if name == "online_image_url":
+            try:
+                # download the image from url
+                url = urllib.parse.unquote(url)
+                req = urllib.request.Request(url, headers=UA)
+                data = urllib.request.urlopen(req, timeout=5).read()
+                data = io.BytesIO(data)
+
+                # detect with vision module
+                image = Image.open(data)
+                detect_results = vision.detect_image(image)
+
+                # send the json result to client
+                self.send_json(detect_results)
+
+                print("detect online image API -> " + url)
+            except:
+                print(traceback.print_exc())
+                self.send_error(500, "detect failed for this image!")
+        else:
+            print("post parameter invalid!")
+            self.send_error(500, "parameter invalid!")
     
-    def classification_action(self):
-        '''image classification API by POST method'''
+    def detect_local(self):
+        '''detect local image API'''
+        
+        try:
+            data = self.rfile.read(int(self.headers["content-length"]))
+            data = io.BytesIO(data)
+
+            # need parse the base post info, and pass to cgi.FieldStorage, which can help us to parse the whole post body(with file data)
+            content_type = self.headers["content-type"]
+            index = content_type.find("boundary=")  # make sure multipart/form-data, we need image data from post body
+            if index < 0:
+                self.send_error(500, "invalid parameters!")
+            else:
+                fs = cgi.FieldStorage(fp=data,environ={"REQUEST_METHOD":"POST", "CONTENT_TYPE":content_type, "CONTENT_LENGTH":self.headers["content-length"]}, headers=self.headers, keep_blank_values=True)
+                
+                image_data = io.BytesIO(fs["local_image"].value)  # get the file data, 'local_image' is the element's name in html
+
+                # detect with vision module
+                image = Image.open(image_data)
+                detect_results = vision.detect_image(image)
+
+                # send the json result to client
+                self.send_json(detect_results)
+
+                print("detect local image API -> ")
+        except:
+            print(traceback.print_exc())
+            self.send_error(500, "detect failed for this image!")
+    
+    def classification_online(self):
+        '''classification for online image API'''
         pass
     
-    def detect_action(self):
-        '''image detect API by POST method'''
-        requets_data = self.rfile.read()
-        print(requets_data)
-    
+    def classification_local(self):
+        '''classification for local image API'''
+        pass
+
+    def send_json(self, detect_results):
+        '''send json response to client'''
+        '''the format of detect_results:  (image, boxes, scores, classes)'''
+
+        image = detect_results[0]
+        boxes = detect_results[1]
+        scores = detect_results[2]
+        classes = detect_results[3]
+
+        # save the image result to cache 
+        cache_name = CACHE_FOLDER + "/" + str(uuid.uuid1()) + ".jpg"
+        image.save(cache_name)
+
+        # response object
+        res = {}
+        
+        res["image"] = "/" + cache_name
+        res["time"] = time.time()
+        res["results"] = []
+
+        l = len(boxes)
+
+        if l > 0:
+            for i in range(l):
+                result = {}
+                result["box"] = [float(value) for value in list(boxes[i])]
+                result["score"] = float(scores[i])
+                result["class"] = classes[i]
+
+                res["results"].append(result)
+        
+        print(res)
+        json_str = json.dumps(res, indent=4, sort_keys=True)
+
+        self.send(json_str.encode(), content_type="application/json")
+
     def send(self, content, code=200, content_type="text/html"):
         '''send raw data to client'''
         self.send_response(code)
 
-        self.send_header('Content-Type', content_type)
-        self.send_header('Content-Length', len(content))
+        self.send_header("content-type", content_type)
+        self.send_header("content-length", len(content))
         self.end_headers()
 
         self.wfile.write(content)
     
-    def send_error(self, code):
+    def send_error(self, code, error=""):
         '''send error to client'''
-        content = ""
+        content = error
         if code == 404:
             content = "<h2>404 Not Found!</h2>"
-        elif code == 500:
-            content = "<h2>500 Server Error!</h2>"
-        else:
-            content = "<h2>" + str(code) + " Unknown Error!</h2>"
         
         content = content.encode()
-
         self.send(content, code)
 
-
 if __name__ == "__main__":
+    '''start vision server'''
+
+    # create cache folder
+    if not os.path.exists(CACHE_FOLDER):
+        os.makedirs(CACHE_FOLDER)
+
     server_address = (SERVER_IP, SERVER_PORT)
     server = HTTPServer(server_address, VisionRequestHandler)
 
+    print("start computer vision web server...")
     server.serve_forever()

@@ -1,13 +1,13 @@
-行人
-自行车
-轿车
-摩托车
-飞机
-客车
-火车
-卡车
-船
-交通灯
+person
+bike
+car
+motorbike
+plane
+bus
+train
+truck
+boat
+traffic light
 fire hydrant
 stop sign
 parking meter

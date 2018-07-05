@@ -1,34 +1,32 @@
 
 $(function()
 {
-    // initialize the slide control
-    var mySwiper = new Swiper('.swiper-container',{
-        pagination: '.pagination',
-        paginationClickable: true,
-        centeredSlides: true,
-        slidesPerView: 3,
-        watchActiveIndex: true,
-        imageClickable: true
-    })
-
     // sync the file input and text input
-    $(".upload .upload-input-file").change(function () {        
-        if ($(this).parent().html().indexOf("class=\"upload-url\"") != -1) {
-            var fileUrl = $(this).val();
-            $(this).parent().children(".upload-url").val(fileUrl);
-        }
+    $("#local_image").change(function () {        
+        $("#local_image_path").val($(this).val());
     });
 
-    // bind click to submit online url detect
-    $("#submit_url").click(function()
+    // bind click to submit online image detect
+    $("#online_image_submit").click(function()
     {
-        $.post("/detect", {"image_url": $("#image_url").val()}, function(data, status, xhr){
-            alert(data)
-        });
+        $.post("/detect/online", {"online_image_url": $("#online_image_url").val()}, function(data, status, xhr){
+            $("#json_result").text(JSON.stringify(data, null, 4))
+            $("#image_result").attr("src", data["image"])
+        }, "json");
     });
 
     // bind click to submit local image detect
-    $("#submit_image").click(function(){
+    $("#local_image_submit").click(function()
+    {
+        $("#local_image_form").ajaxSubmit({
+            success: function(data) {
+                $("#json_result").text(JSON.stringify(data, null, 4))
+                $("#image_result").attr("src", data["image"])
+            },
+            url: "/detect/local",
+            type: "post",
+            dataType: "json"
+        });
 
     });
 })

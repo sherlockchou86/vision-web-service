@@ -2,6 +2,7 @@
 *.h5
 logs/
 *_test.py
+*.ttc
 
 .vscode/
 
